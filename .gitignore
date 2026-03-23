@@ -53,6 +53,7 @@ result/*.jpg
 result/*.png
 result/*.jpeg
 !result/.gitkeep
+result/test/
 
 # Excel 输出
 *.xlsx

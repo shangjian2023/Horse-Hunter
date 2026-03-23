@@ -1,7 +1,7 @@
+# FinBrain 上市公司财报智能问数系统 - 依赖包
+
 # PDF 解析
 pdfplumber>=0.11.0
-camelot-py[cv]>=1.0.0
-tabula-py>=2.9.0
 PyMuPDF>=1.24.0
 
 # 数据处理
@@ -14,33 +14,21 @@ xlrd>=2.0.0
 sqlalchemy>=2.0.0
 pymysql>=1.1.0
 
-# 数据校验
-great_expectations>=1.0.0
-
-# OCR
-paddleocr>=2.7.0
-paddlepaddle>=2.5.0
-opencv-python-headless>=4.8.0
-
-# LLM 相关（智能问数）
-langchain>=0.1.0
-langchain-community>=0.0.10
-chromadb>=0.4.0
-tiktoken>=0.5.0
+# LLM API 调用
 requests>=2.31.0
 
-# RAG 知识库
-PyMuPDF>=1.24.0
-python-docx>=0.8.11
+# RAG 知识库（可选）
+# FlagEmbedding>=1.2.0  # 中文嵌入模型
+# chromadb>=0.4.0       # 向量数据库
 
 # Web 框架
 streamlit>=1.30.0
-fastapi>=0.109.0
-uvicorn>=0.27.0
 
 # 可视化
 matplotlib>=3.8.0
-plotly>=5.18.0
 
 # 工具
 python-dotenv>=1.0.0
+
+# 测试
+pytest>=7.4.0

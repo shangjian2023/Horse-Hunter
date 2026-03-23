@@ -14,12 +14,27 @@ from parsers.pdf_parser import EnhancedPDFParser, ReportBatchParser
 from utils.data_validator import DataCleaner, DataValidator
 
 
-st.set_page_config(
-    page_title="财报数据处理工具",
-    page_icon="📁",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 只在直接运行时设置页面配置
+import sys
+if hasattr(sys, '_getframe') and sys._getframe(1).f_globals.get('__name__') == '__main__':
+    st.set_page_config(
+        page_title="财报数据处理工具",
+        page_icon="📁",
+        layout="wide",
+        initial_sidebar_state="expanded"
+    )
+elif 'page_config_set' not in st.session_state:
+    # 作为模块导入时，只设置一次页面配置
+    try:
+        st.set_page_config(
+            page_title="财报数据处理工具",
+            page_icon="📁",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+        st.session_state.page_config_set = True
+    except:
+        pass  # 已经设置过，跳过
 
 # 初始化会话状态
 if 'processed_data' not in st.session_state:

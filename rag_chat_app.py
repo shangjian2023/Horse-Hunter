@@ -11,13 +11,18 @@ from models.chat_agent import ChatAgent
 from models.rag.retriever import Retriever
 from models.rag.knowledge_base import KnowledgeBase
 
-# 页面配置
-st.set_page_config(
-    page_title="上市公司财报智能问数助手",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 页面配置 - 只在直接运行时或首次导入时设置
+if 'page_config_set' not in st.session_state:
+    try:
+        st.set_page_config(
+            page_title="上市公司财报智能问数助手",
+            page_icon="📊",
+            layout="wide",
+            initial_sidebar_state="expanded"
+        )
+        st.session_state.page_config_set = True
+    except:
+        pass  # 已经设置过，跳过
 
 # 自定义 CSS 样式
 st.markdown("""

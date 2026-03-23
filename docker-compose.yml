@@ -1,0 +1,102 @@
+# Docker Compose 配置 - 多人协作开发环境
+version: '3.8'
+
+services:
+  # MySQL 数据库服务
+  mysql:
+    image: mysql:8.0
+    container_name: financial_report_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-financial_report}
+      MYSQL_USER: ${MYSQL_USER:-fin_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-fin_pass123}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - financial_network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 主应用服务
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial_report_app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # 数据库配置
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-financial_report}
+      DB_USER: ${MYSQL_USER:-fin_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-fin_pass123}
+      # API 配置
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-qwen3.5-plus}
+      # 时区
+      TZ: Asia/Shanghai
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    volumes:
+      # 挂载项目目录（开发模式热重载）
+      - .:/app
+      # 挂载数据目录
+      - ./data:/app/data
+      - ./result:/app/result
+      - ./logs:/app/logs
+    working_dir: /app
+    command: >
+      bash -c "
+        echo '等待数据库启动...' &&
+        sleep 5 &&
+        python main.py --init-db &&
+        streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+      "
+    networks:
+      - financial_network
+
+  # Streamlit 服务（可选，用于前端展示）
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: financial_report_streamlit
+    profiles:
+      - streamlit
+    depends_on:
+      - app
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-financial_report}
+      DB_USER: ${MYSQL_USER:-fin_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-fin_pass123}
+    ports:
+      - "${STREAMLIT_PORT:-8502}:8501"
+    volumes:
+      - ./result:/app/result:ro
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+    networks:
+      - financial_network
+
+networks:
+  financial_network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local

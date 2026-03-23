@@ -23,7 +23,7 @@
 ```bash
 # 1. 克隆项目
 git clone https://github.com/shangjian2023/Horse-Hunter.git
-cd Horse-Hunter
+cd 泰迪杯
 
 # 2. 配置环境变量
 cp .env.example .env
@@ -46,73 +46,89 @@ pip install -r requirements.txt
 cp .env.example .env
 # 编辑 .env 填入 API key
 
-# 3. 初始化数据库
-python main.py --init-db
+# 3. 运行测试
+python test_finbrain.py
 
-# 4. 启动应用
-streamlit run chat_app.py
+# 4. 运行完整流水线
+python src/main.py --data-dir "./B 题 - 示例数据/示例数据" --output-dir "./result"
 ```
 
 ## 📁 项目结构
 
 ```
-Horse-Hunter/
-├── app.py                    # 财报数据处理应用
-├── chat_app.py               # 智能问数助手（基础版）
-├── rag_chat_app.py           # 智能问数助手（RAG 增强版）
-├── main.py                   # 命令行批处理入口
-├── rag_init.py               # RAG 知识库初始化工具
+泰迪杯/
+├── app.py                    # Streamlit 应用入口
+├── test_finbrain.py          # 系统测试脚本
 │
-├── models/                   # AI 模型模块
-│   ├── chat_agent.py         # 智能问数主模块
-│   ├── text_to_sql.py        # Text-to-SQL 转换器
-│   ├── conversation_manager.py  # 对话管理器
-│   ├── visualization.py      # 可视化引擎
-│   ├── multimodal.py         # 多模态处理器
-│   └── rag/                  # RAG 知识库
-│       ├── document_loader.py
-│       ├── knowledge_base.py
-│       └── retriever.py
+├── src/                      # 核心模块
+│   ├── etl/                  # 财报 ETL 引擎
+│   │   ├── financial_parser.py    # PDF 解析器
+│   │   └── financial_validator.py # 财务勾稽关系校验
+│   │
+│   ├── agent/                # Agent 智能问数核心
+│   │   ├── task_planner.py        # 任务规划器
+│   │   ├── nl2sql.py              # NL2SQL 转换器
+│   │   └── visualization.py       # 可视化引擎
+│   │
+│   ├── rag/                  # RAG 增强与归因分析
+│   │   └── retriever.py           # 检索增强生成
+│   │
+│   ├── api/                  # API 接口层
+│   │   └── llm_client.py          # 多模型 API 客户端
+│   │
+│   └── main.py               # 主入口程序
 │
 ├── database/                 # 数据库模块
-├── parsers/                  # PDF 解析模块
-├── utils/                    # 工具函数
-└── config/                   # 配置模块
+│   └── init.sql              # 初始化脚本
+├── docker-compose.yml        # Docker 编排配置
+├── Dockerfile                # Docker 镜像配置
+└── requirements.txt          # Python 依赖
 ```
 
 ## 💡 功能演示
 
-### 1. 自然语言查询
+### 1. 财报解析
+
+```
+输入：600080_20230428_FQ2V.pdf
+输出：
+  - 核心业绩指标表
+  - 资产负债表
+  - 利润表
+  - 现金流量表
+  - 勾稽关系校验报告
+```
+
+### 2. 自然语言查询
 
 ```
 用户：贵州茅台 2024 年的净利润是多少？
-助手：查询结果：
-  - 营业总收入：1505.68 亿元
-  - 净利润：743.21 亿元
-  - 同比增长：15.3%
+助手：生成 SQL 并执行：
+  SELECT net_profit FROM core_performance_indicators
+  WHERE company_name = '贵州茅台' AND report_date = '2024-12-31'
+结果：743.21 亿元
 ```
 
-### 2. 多轮对话
+### 3. 复杂问题拆解
 
 ```
-用户：查询贵州茅台的净利润
-助手：贵州茅台 2024 年净利润为 743.21 亿元
+用户：对比 Top 10 药企的净利润和研发投入
 
-用户：那营业收入呢？
-助手：贵州茅台 2024 年营业收入为 1505.68 亿元
-
-用户：对比一下五粮液
-助手：[展示对比数据]
+助手自动拆解为：
+  1. 查询所有药企的净利润并排序
+  2. 取前 10 名企业
+  3. 查询这些企业的研发投入
+  4. 生成对比柱状图
 ```
 
-### 3. 行业知识问答（RAG）
+### 4. RAG 行业问答
 
 ```
 用户：医药行业的政策环境如何？
-助手：根据知识库中的行业报告，医药行业政策环境如下：
+助手：根据知识库中的行业报告：
   - 集采政策持续推进...
   - 创新药审批加速...
-  [附参考来源]
+  [附参考来源：2025 年医药行业研究报告.pdf]
 ```
 
 ## 🔧 配置说明
@@ -120,18 +136,35 @@ Horse-Hunter/
 ### 环境变量 (.env)
 
 ```ini
-# LLM API 配置
-ANTHROPIC_BASE_URL=https://your-api-endpoint.com
-ANTHROPIC_AUTH_TOKEN=your-api-key
-ANTHROPIC_MODEL=qwen-plus
-
 # 数据库配置
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
+MYSQL_ROOT_PASSWORD=root123
 MYSQL_DATABASE=financial_report
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
+MYSQL_USER=fin_user
+MYSQL_PASSWORD=fin_pass123
+MYSQL_PORT=3306
+
+# 应用配置
+APP_PORT=8501
+
+# LLM API 配置（推荐使用 DeepSeek）
+LLM_API_KEY=sk-xxxxxxxxxxxxxxxx
+LLM_BASE_URL=https://api.deepseek.com/v1
+LLM_MODEL=deepseek-chat
+
+# 可选配置
+DEBUG=true
+TZ=Asia/Shanghai
 ```
+
+### 支持的 LLM 模型
+
+| 提供商 | 模型 | Base URL |
+|--------|------|----------|
+| DeepSeek | deepseek-chat | https://api.deepseek.com/v1 |
+| 阿里云 | qwen-plus | https://dashscope.aliyuncs.com/compatible-mode/v1 |
+| 百度 | ernie-4.0 | https://aip.baidubce.com/rpc/2.0/ai_custom/v1 |
+| 智谱 | glm-4 | https://open.bigmodel.cn/api/paas/v4 |
+| Moonshot | moonshot-v1-8k | https://api.moonshot.cn/v1 |
 
 ## 📚 使用文档
 

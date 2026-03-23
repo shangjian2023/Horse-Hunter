@@ -1,11 +1,11 @@
-# Docker Compose 配置 - 多人协作开发环境
-name: financial-report-assistant
+# FinBrain 上市公司财报智能问数系统 - Docker Compose 配置
+name: finbrain-financial-report
 
 services:
   # MySQL 数据库服务
   mysql:
     image: mysql:8.0
-    container_name: financial_report_mysql
+    container_name: finbrain_mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
@@ -19,19 +19,19 @@ services:
       - mysql_data:/var/lib/mysql
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
-      - financial_network
+      - finbrain_network
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # 主应用服务（应用选择界面）
+  # FinBrain 主应用服务
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: financial_report_app
+    container_name: finbrain_app
     restart: unless-stopped
     depends_on:
       mysql:
@@ -43,10 +43,10 @@ services:
       DB_NAME: ${MYSQL_DATABASE:-financial_report}
       DB_USER: ${MYSQL_USER:-fin_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-fin_pass123}
-      # API 配置
-      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
-      ANTHROPIC_AUTH_TOKEN: ${ANTHROPIC_AUTH_TOKEN:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-deepseek-chat}
+      # LLM API 配置
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
       # 时区
       TZ: Asia/Shanghai
     ports:
@@ -58,40 +58,49 @@ services:
       - ./data:/app/data
       - ./result:/app/result
       - ./logs:/app/logs
+      - ./processed:/app/processed
     working_dir: /app
     command: >
       bash -c "
         streamlit run app.py --server.port=8501 --server.address=0.0.0.0
       "
     networks:
-      - financial_network
+      - finbrain_network
 
-  # Streamlit 服务（可选，用于前端展示）
-  streamlit:
+  # FinBrain 命令行工具（一次性运行流水线）
+  pipeline:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: financial_report_streamlit
+    container_name: finbrain_pipeline
     profiles:
-      - streamlit
+      - pipeline
     depends_on:
-      - app
+      - mysql
     environment:
+      # 数据库配置
       DB_HOST: mysql
       DB_PORT: 3306
       DB_NAME: ${MYSQL_DATABASE:-financial_report}
       DB_USER: ${MYSQL_USER:-fin_user}
       DB_PASSWORD: ${MYSQL_PASSWORD:-fin_pass123}
-    ports:
-      - "${STREAMLIT_PORT:-8502}:8501"
+      # LLM API 配置
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.deepseek.com/v1}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
     volumes:
-      - ./result:/app/result:ro
-    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+      - .:/app
+      - ./result:/app/result
+      - ./processed:/app/processed
+    command: >
+      python src/main.py
+      --data-dir /app/B 题 - 示例数据/示例数据
+      --output-dir /app/result
     networks:
-      - financial_network
+      - finbrain_network
 
 networks:
-  financial_network:
+  finbrain_network:
     driver: bridge
 
 volumes:

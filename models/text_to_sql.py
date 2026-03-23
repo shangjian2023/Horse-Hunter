@@ -35,9 +35,9 @@ class TextToSQL:
         else:
             # 从环境变量加载
             load_dotenv()
-            self.api_base_url = os.getenv('ANTHROPIC_BASE_URL', '')
-            self.api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
-            self.model = os.getenv('ANTHROPIC_MODEL', 'qwen-plus')
+            self.api_base_url = os.getenv('LLM_BASE_URL', '')
+            self.api_key = os.getenv('LLM_API_KEY', '')
+            self.model = os.getenv('LLM_MODEL', 'qwen-plus')
 
     def update_api_config(self, api_config: Dict):
         """动态更新 API 配置"""

@@ -163,9 +163,9 @@ APP_PORT=8501
 STREAMLIT_PORT=8502
 
 # LLM API 配置
-ANTHROPIC_BASE_URL={config['base_url']}
-ANTHROPIC_AUTH_TOKEN={config['api_key']}
-ANTHROPIC_MODEL={config['model']}
+LLM_API_KEY={config['api_key']}
+LLM_BASE_URL={config['base_url']}
+LLM_MODEL={config['model']}
 
 # 可选配置
 DEBUG=true

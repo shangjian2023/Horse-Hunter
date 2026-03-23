@@ -294,22 +294,51 @@ def process_batch(files):
     """批量处理文件"""
     progress_bar = st.progress(0)
     status_text = st.empty()
+    result_text = st.empty()
 
     success_count = 0
     error_count = 0
+    total_records = 0
 
     for i, file_path in enumerate(files):
         status_text.text(f"正在处理 ({i+1}/{len(files)}): {os.path.basename(file_path)}")
 
         try:
-            # 简化处理逻辑
+            # 使用正确的解析方法
             parser = EnhancedPDFParser()
-            result = parser.parse_pdf(file_path)
 
-            if result and 'error' not in result:
+            # 检查文件是否存在
+            if not os.path.exists(file_path):
+                error_count += 1
+                continue
+
+            # 使用 parse_report 方法
+            report = parser.parse_report(file_path)
+
+            # 转换为字典格式保存
+            result = {
+                'data': [report.key_metrics] if report.key_metrics else [],
+                'source': os.path.basename(file_path),
+                'stock_code': report.stock_code,
+                'report_type': report.report_type
+            }
+
+            if result and result['data']:
+                # 保存到 session_state
+                st.session_state.processed_data[os.path.basename(file_path)] = result
+
+                # 记录导入历史
+                st.session_state.import_history.append({
+                    'file': os.path.basename(file_path),
+                    'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'records': len(result['data'])
+                })
+
                 success_count += 1
+                total_records += len(result['data'])
             else:
                 error_count += 1
+
         except Exception as e:
             error_count += 1
 
@@ -317,11 +346,19 @@ def process_batch(files):
 
     status_text.text("批量处理完成!")
 
+    # 显示详细结果
+    result_text.markdown(f"**共处理 {len(files)} 个文件，成功 {success_count} 个，失败 {error_count} 个，总计 {total_records} 条记录**")
+
     col1, col2 = st.columns(2)
     with col1:
         st.success(f"成功：{success_count}")
     with col2:
         st.error(f"失败：{error_count}")
+
+    # 显示处理结果按钮
+    if success_count > 0:
+        if st.button("📊 查看处理结果"):
+            display_processed_data()
 
 
 def show_import_history():

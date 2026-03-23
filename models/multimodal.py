@@ -19,8 +19,8 @@ class MultimodalProcessor:
         import os
         from dotenv import load_dotenv
         load_dotenv()
-        self.api_base_url = os.getenv('ANTHROPIC_BASE_URL', '')
-        self.api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
+        self.api_base_url = os.getenv('LLM_BASE_URL', '')
+        self.api_key = os.getenv('LLM_API_KEY', '')
 
     def analyze_image(self, image_path: str, question: str = "请分析这张图片") -> str:
         """

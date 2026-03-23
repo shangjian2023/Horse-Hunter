@@ -42,8 +42,8 @@ class KnowledgeBase:
         """加载配置"""
         from dotenv import load_dotenv
         load_dotenv()
-        self.api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
-        self.api_base_url = os.getenv('ANTHROPIC_BASE_URL', '')
+        self.api_key = os.getenv('LLM_API_KEY', '')
+        self.api_base_url = os.getenv('LLM_BASE_URL', '')
 
     def _load_index(self):
         """加载索引"""

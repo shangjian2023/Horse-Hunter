@@ -21,6 +21,7 @@ if "page" not in st.session_state:
 
 def set_page(page_name):
     st.session_state.page = page_name
+    st.rerun()
 
 # 侧边栏菜单
 menu = {

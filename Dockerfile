@@ -17,8 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     # OpenCV 依赖
-    libgl1-mesa-glx \
-    libglib2.3-0 \
+    libgl1 \
+    libglib2.0-0 \
     libsm6 \
     libxrender1 \
     libxext6 \

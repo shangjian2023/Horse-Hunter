@@ -12,20 +12,39 @@ from database.db_manager import DatabaseManager
 class TextToSQL:
     """Text-to-SQL 转换器"""
 
-    def __init__(self, db_manager: Optional[DatabaseManager] = None):
+    def __init__(self, db_manager: Optional[DatabaseManager] = None,
+                 api_config: Optional[Dict] = None):
         self.db_manager = db_manager or DatabaseManager()
         self.schema_info = self._get_schema_info()
+        self.api_config = api_config
         self.api_base_url = None
         self.api_key = None
+        self.model = None
         self._load_api_config()
 
     def _load_api_config(self):
-        """加载 API 配置"""
+        """加载 API 配置 - 优先使用传入的配置，否则从环境变量加载"""
         import os
         from dotenv import load_dotenv
-        load_dotenv()
-        self.api_base_url = os.getenv('ANTHROPIC_BASE_URL', '')
-        self.api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
+
+        # 如果传入了 api_config，优先使用
+        if self.api_config:
+            self.api_base_url = self.api_config.get('base_url', '')
+            self.api_key = self.api_config.get('api_key', '')
+            self.model = self.api_config.get('model', 'qwen-plus')
+        else:
+            # 从环境变量加载
+            load_dotenv()
+            self.api_base_url = os.getenv('ANTHROPIC_BASE_URL', '')
+            self.api_key = os.getenv('ANTHROPIC_AUTH_TOKEN', '')
+            self.model = os.getenv('ANTHROPIC_MODEL', 'qwen-plus')
+
+    def update_api_config(self, api_config: Dict):
+        """动态更新 API 配置"""
+        self.api_config = api_config
+        self.api_base_url = api_config.get('base_url', '')
+        self.api_key = api_config.get('api_key', '')
+        self.model = api_config.get('model', 'qwen-plus')
 
     def _get_schema_info(self) -> str:
         """获取数据库表结构信息"""
@@ -139,13 +158,31 @@ SQL: SELECT stock_abbr, operating_revenue FROM income_sheet WHERE report_period 
             # 没有 API key 时返回示例 SQL
             return "SELECT * FROM income_sheet LIMIT 10;"
 
+        # 构建请求头
         headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
         }
 
+        # 构建 API URL - 智能拼接，避免重复路径
+        def build_api_url(base_url: str) -> str:
+            """构建完整的 API URL"""
+            if not base_url:
+                return ''
+            base = base_url.rstrip('/')
+            # 如果 base_url 已经包含 /chat/completions，直接返回
+            if base.endswith('/chat/completions'):
+                return base
+            # 否则拼接 /chat/completions
+            return f"{base}/chat/completions"
+
+        api_url = build_api_url(self.api_base_url)
+
+        if not api_url:
+            return "ERROR: 未配置有效的 API Base URL"
+
         payload = {
-            'model': 'qwen-plus',
+            'model': self.model or 'qwen-plus',
             'messages': [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt}
@@ -156,19 +193,38 @@ SQL: SELECT stock_abbr, operating_revenue FROM income_sheet WHERE report_period 
 
         try:
             response = requests.post(
-                self.api_base_url + '/chat/completions' if self.api_base_url else 'https://api.anthropic.com/v1/messages',
+                api_url,
                 headers=headers,
                 json=payload,
                 timeout=30
             )
             response.raise_for_status()
 
-            if 'choices' in response.json():
-                return response.json()['choices'][0]['message']['content'].strip()
+            result = response.json()
+            if 'choices' in result:
+                return result['choices'][0]['message']['content'].strip()
+            elif 'content' in result:
+                # 某些 API 返回格式
+                return result['content'][0].get('text', '').strip()
             else:
-                return response.json().get('content', [{}])[0].get('text', '').strip()
+                return f"ERROR: 未知的 API 响应格式 - {result}"
 
+        except requests.exceptions.HTTPError as e:
+            error_detail = ""
+            try:
+                error_detail = response.json().get('error', {}).get('message', str(e))
+            except:
+                error_detail = str(e)
+            return f"ERROR: HTTP {response.status_code} - {error_detail}"
+        except requests.exceptions.ConnectionError as e:
+            return f"ERROR: 网络连接失败 - {str(e)}"
+        except requests.exceptions.Timeout as e:
+            return f"ERROR: 请求超时 - {str(e)}"
         except Exception as e:
+            error_msg = str(e)
+            # 检查是否是 API 调用错误，避免重复调用
+            if 'API 调用失败' in error_msg or '404' in error_msg or '401' in error_msg:
+                return f"ERROR: API 服务不可用 - {error_msg}"
             return f"ERROR: API 调用失败 - {str(e)}"
 
     def _execute_sql(self, sql: str) -> List[Dict]:

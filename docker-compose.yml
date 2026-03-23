@@ -1,5 +1,5 @@
 # Docker Compose 配置 - 多人协作开发环境
-version: '3.8'
+name: financial-report-assistant
 
 services:
   # MySQL 数据库服务
@@ -63,8 +63,7 @@ services:
       bash -c "
         echo '等待数据库启动...' &&
         sleep 5 &&
-        python main.py --init-db &&
-        streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+        streamlit run rag_chat_app.py --server.port=8501 --server.address=0.0.0.0
       "
     networks:
       - financial_network

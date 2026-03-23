@@ -12,11 +12,17 @@ from models.visualization import VisualizationEngine
 class ChatAgent:
     """智能问数助手"""
 
-    def __init__(self):
-        self.text_to_sql = TextToSQL()
+    def __init__(self, api_config: Optional[Dict] = None):
+        self.api_config = api_config
+        self.text_to_sql = TextToSQL(api_config=api_config)
         self.conversation_manager = ConversationManager()
         self.visualization = VisualizationEngine()
         self.sessions: Dict[str, Dict] = {}
+
+    def update_api_config(self, api_config: Dict):
+        """更新 API 配置"""
+        self.api_config = api_config
+        self.text_to_sql.update_api_config(api_config)
 
     def chat(self, question: str, session_id: str = 'default',
              image: Optional[str] = None) -> Dict[str, Any]:

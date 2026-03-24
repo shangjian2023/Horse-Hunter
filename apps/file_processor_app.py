@@ -3,38 +3,21 @@
 支持 PDF/Excel/Word 多种格式，现场演示使用
 """
 
-import streamlit as st
-import pandas as pd
-import os
+import sys
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+import streamlit as st
+
+# 添加项目根目录到 Python 路径
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # 导入解析器模块
-from parsers.pdf_parser import EnhancedPDFParser, ReportBatchParser
-from utils.data_validator import DataCleaner, DataValidator
+from src.etl.financial_parser import FinancialParser, ReportBatchParser
 
-
-# 只在直接运行时设置页面配置
-import sys
-if hasattr(sys, '_getframe') and sys._getframe(1).f_globals.get('__name__') == '__main__':
-    st.set_page_config(
-        page_title="财报数据处理工具",
-        page_icon="📁",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-elif 'page_config_set' not in st.session_state:
-    # 作为模块导入时，只设置一次页面配置
-    try:
-        st.set_page_config(
-            page_title="财报数据处理工具",
-            page_icon="📁",
-            layout="wide",
-            initial_sidebar_state="expanded"
-        )
-        st.session_state.page_config_set = True
-    except:
-        pass  # 已经设置过，跳过
 
 # 初始化会话状态
 if 'processed_data' not in st.session_state:
@@ -141,26 +124,43 @@ def handle_batch_import():
     """处理批量导入"""
     st.subheader("📂 批量导入")
 
-    # 默认数据目录
-    default_dirs = [
-        "B 题 - 示例数据/示例数据/附件 2：财务报告/reports-上交所",
-        "B 题 - 示例数据/示例数据/附件 2：财务报告/reports-深交所",
-        "data/input",
-    ]
+    # 动态查找数据目录 - 避免中文路径编码问题
+    default_dirs = []
+
+    # 使用 rglob 查找包含 PDF 的目录
+    base_path = Path(".")
+
+    # 查找 reports-上交所 和 reports-深交所 目录
+    for dir_pattern in ["**/reports-上交所", "**/reports-深交所", "**/data/input"]:
+        for found_dir in base_path.glob(dir_pattern):
+            if found_dir.is_dir():
+                default_dirs.append(str(found_dir))
+
+    # 如果没有找到，使用硬编码路径作为 fallback
+    if not default_dirs:
+        default_dirs = [
+            "B 题 - 示例数据/示例数据/附件 2：财务报告/reports-上交所",
+            "B 题 - 示例数据/示例数据/附件 2：财务报告/reports-深交所",
+            "data/input",
+        ]
+
+    if not default_dirs:
+        st.warning("未找到默认数据目录，请手动输入路径")
+        default_dirs = [""]
 
     selected_dir = st.selectbox(
         "选择预设目录",
         default_dirs,
-        index=0
+        index=0 if default_dirs[0] else -1
     )
 
     custom_dir = st.text_input("或输入自定义目录路径")
 
-    target_dir = custom_dir if custom_dir else selected_dir
+    target_dir = Path(custom_dir) if custom_dir else Path(selected_dir)
 
     if st.button("📁 扫描目录"):
-        if os.path.exists(target_dir):
-            scan_directory(target_dir)
+        if target_dir.exists():
+            scan_directory(str(target_dir))
         else:
             st.error(f"目录不存在：{target_dir}")
 
@@ -173,16 +173,22 @@ def process_file(uploaded_file):
     with st.spinner(f"正在处理 {file_name}..."):
         try:
             # 创建临时文件
-            temp_path = f"./data/temp/{file_name}"
-            os.makedirs("./data/temp", exist_ok=True)
+            temp_dir = Path("./data/temp")
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            temp_path = temp_dir / file_name
 
             with open(temp_path, "wb") as f:
                 f.write(uploaded_file.getvalue())
 
             # 根据格式选择解析器
             if file_ext == 'pdf':
-                parser = EnhancedPDFParser()
-                result = parser.parse_pdf(temp_path)
+                parser = FinancialParser()
+                result = parser.parse_pdf(str(temp_path))
+
+                # 提取核心指标
+                if 'error' not in result:
+                    key_metrics = parser.extract_key_metrics(result)
+                    result = {'data': [key_metrics] if key_metrics else [], 'source': file_name}
             elif file_ext in ['xlsx', 'xls']:
                 df = pd.read_excel(temp_path)
                 result = {'data': df.to_dict('records'), 'source': file_name}
@@ -208,8 +214,8 @@ def process_file(uploaded_file):
                 st.error(f"❌ 处理失败：{result.get('error', '未知错误')}")
 
             # 清理临时文件
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            if temp_path.exists():
+                temp_path.unlink()
 
         except Exception as e:
             st.error(f"处理出错：{e}")
@@ -257,7 +263,7 @@ def display_processed_data():
                             f"{file_name}_processed.xlsx",
                             use_container_width=True
                         )
-                    os.remove('output.xlsx')
+                    Path('output.xlsx').unlink()
             else:
                 st.warning("暂无数据")
 
@@ -266,11 +272,8 @@ def scan_directory(directory):
     """扫描目录并显示文件列表"""
     st.write(f"扫描目录：**{directory}**")
 
-    pdf_files = []
-    for root, dirs, files in os.walk(directory):
-        for f in files:
-            if f.endswith('.pdf'):
-                pdf_files.append(os.path.join(root, f))
+    dir_path = Path(directory)
+    pdf_files = list(dir_path.rglob("*.pdf"))  # 递归查找所有 PDF 文件
 
     if pdf_files:
         st.success(f"找到 {len(pdf_files)} 个 PDF 文件")
@@ -285,7 +288,7 @@ def scan_directory(directory):
 
         # 批量处理按钮
         if st.button(f"🚀 批量处理所有 {len(pdf_files)} 个文件"):
-            process_batch(pdf_files)
+            process_batch([str(f) for f in pdf_files])
     else:
         st.warning("未找到 PDF 文件")
 
@@ -300,36 +303,45 @@ def process_batch(files):
     error_count = 0
     total_records = 0
 
+    # 初始化解析器
+    parser = FinancialParser()
+
     for i, file_path in enumerate(files):
-        status_text.text(f"正在处理 ({i+1}/{len(files)}): {os.path.basename(file_path)}")
+        status_text.text(f"正在处理 ({i+1}/{len(files)}): {Path(file_path).name}")
 
         try:
-            # 使用正确的解析方法
-            parser = EnhancedPDFParser()
-
             # 检查文件是否存在
-            if not os.path.exists(file_path):
+            if not Path(file_path).exists():
                 error_count += 1
                 continue
 
-            # 使用 parse_report 方法
-            report = parser.parse_report(file_path)
+            # 使用 parse_pdf 方法解析文件
+            result = parser.parse_pdf(file_path)
+
+            # 检查是否有错误
+            if 'error' in result:
+                error_count += 1
+                continue
+
+            # 提取核心指标
+            key_metrics = parser.extract_key_metrics(result)
 
             # 转换为字典格式保存
+            data_records = [key_metrics] if key_metrics else []
             result = {
-                'data': [report.key_metrics] if report.key_metrics else [],
-                'source': os.path.basename(file_path),
-                'stock_code': report.stock_code,
-                'report_type': report.report_type
+                'data': data_records,
+                'source': Path(file_path).name,
+                'stock_code': key_metrics.get('stock_code'),
+                'report_type': key_metrics.get('report_type')
             }
 
             if result and result['data']:
                 # 保存到 session_state
-                st.session_state.processed_data[os.path.basename(file_path)] = result
+                st.session_state.processed_data[Path(file_path).name] = result
 
                 # 记录导入历史
                 st.session_state.import_history.append({
-                    'file': os.path.basename(file_path),
+                    'file': Path(file_path).name,
                     'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'records': len(result['data'])
                 })
